@@ -7,13 +7,16 @@ program Test {
 
   void SumUp() {
     int sum;
-    sum = 0;
-    while (i > 0) { sum = sum + i; i = i - 1; }
-    write sum;
+    sum := 0;
+    while (i > 0) { sum := sum + i; i := i - 1; }
+    //write sum;
   }
 
   void Main() {
     read i;
+    if( i !=0 ){
+        write i;
+    }
     while (i > 0) {
       SumUp();
       read i;
