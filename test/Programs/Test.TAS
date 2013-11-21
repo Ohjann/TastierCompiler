@@ -3,18 +3,18 @@
 // number, the sum of all integers up to that number
 
 program Test {
+  const a := 1;
   int i;
 
   void SumUp() {
     int sum;
     sum := 0;
     while (i > 0) { sum := sum + i; i := i - 1; }
-    write sum;
   }
 
   void Main() {
     read i;
-    if (i != 9) {
+    if (i < 100) {
         write 1;
     } else {
         write 2;

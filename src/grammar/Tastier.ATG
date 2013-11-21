@@ -12,6 +12,7 @@ COMPILER Tastier
 
   enum TastierKind : int {  // kinds of symbol
     Var,
+    Const,
     Proc
   };
 
@@ -568,7 +569,7 @@ Tastier                         (.  string name; bool external = false; .)
                                     openScopes.Push(new Scope());
                                 .)
   '{'
-  { VarDecl<external> | ProcDecl | ExternDecl }
+  { ConstDecl | VarDecl<external> | ProcDecl | ExternDecl }
   '}'                           (.
                                     if (openScopes.Peek().Count == 0) {
                                       Warn("Warning: Program " + name + " is empty ");
@@ -640,6 +641,22 @@ VarDecl<bool external>          (.
                                     }
                                 .)
   } ';'.
+
+ConstDecl                       (.
+                                    string name; Scope currentScope = openScopes.Peek();
+                                .)
+= "const"  Ident <out name>    (.
+                                    currentScope.Push(new Symbol(name, (int)TastierKind.Var, 1, openScopes.Count-1, currentScope.Count(s => s.Item2 == (int)TastierKind.Var)));
+                                .)
+  { ',' Ident<out name>         (.
+                                    currentScope.Push(new Symbol(name, (int)TastierKind.Var, 1, openScopes.Count-1, currentScope.Count(s => s.Item2 == (int)TastierKind.Var)));
+                                .)
+  } ":="                        (.
+
+                                .)
+  number ';'                    (.
+
+                                .).
 
 ExternDecl                      (.  string name; bool external = true; Scope currentScope = openScopes.Peek(); int count = currentScope.Count; .)
 = "external"
