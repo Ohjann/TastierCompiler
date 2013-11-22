@@ -3,7 +3,8 @@
 // number, the sum of all integers up to that number
 
 program Test {
-  const a := 1;
+  const a := 99;
+  const b := 33;
   int i;
 
   void SumUp() {
@@ -15,9 +16,9 @@ program Test {
   void Main() {
     read i;
     if (i < 100) {
-        write 1;
+        write b;
     } else {
-        write 2;
+        write 3;
     }
     while (i > 0) {
       SumUp();

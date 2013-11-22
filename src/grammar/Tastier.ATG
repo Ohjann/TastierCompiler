@@ -108,6 +108,7 @@ COMPILER Tastier
 */
 
 Stack<Scope> openScopes = new Stack<Scope>();
+Stack<Instruction> globalDeclarations = new Stack<Instruction>();
 Scope externalDeclarations = new Scope();
 
 /*
@@ -308,7 +309,7 @@ Factor<out TastierType type>    (.  int n; Symbol sym; string name; .)
                                     }
                                     else {
                                       type = (TastierType)sym.Item3;
-                                      if ((TastierKind)sym.Item2 == TastierKind.Var) {
+                                      if (((TastierKind)sym.Item2 == TastierKind.Var) ||((TastierKind)sym.Item2 == TastierKind.Const)) {
                                         if (sym.Item4 == 0) {
                                             if (isExternal) {
                                               program.Add(new Instruction("", "LoadG " + sym.Item1));
@@ -370,6 +371,10 @@ ProcDecl                        (.  string name; string label; Scope currentScop
                                     enterInstLocation = program.Count - 1;
                                     label = generateProcedureName(name);
                                     openProcedureDeclarations.Push(name);
+                                    while(globalDeclarations.Count != 0){
+                                        program.Add(globalDeclarations.Pop());
+                                    }
+
                                     /*
                                       Enter is supposed to have as an
                                       argument the next free address on the
@@ -579,7 +584,10 @@ Tastier                         (.  string name; bool external = false; .)
 
                                     header.Add(new Instruction("", ".names " + (externalDeclarations.Count + openScopes.Peek().Count)));
                                     foreach (Symbol s in openScopes.Peek()) {
-                                      if (s.Item2 == (int)TastierKind.Var) {
+                                      if (s.Item2 == (int)TastierKind.Const){
+                                       header.Add(new Instruction("", ".const " + ((int)s.Item3) + " " + s.Item1));
+                                      }
+                                      else if (s.Item2 == (int)TastierKind.Var) {
                                         header.Add(new Instruction("", ".var " + ((int)s.Item3) + " " + s.Item1));
                                       } else if (s.Item2 == (int)TastierKind.Proc) {
                                         header.Add(new Instruction("", ".proc " + s.Item1));
@@ -645,20 +653,19 @@ VarDecl<bool external>          (.
   } ';'.
 
 ConstDecl                       (.
-                                    string name; Scope currentScope = openScopes.Peek();
+                                    Scope currentScope = openScopes.Peek();string name; int n;
                                 .)
-= "const"  Ident <out name>    (.
-                                    currentScope.Push(new Symbol(name, (int)TastierKind.Var, 1, openScopes.Count-1, currentScope.Count(s => s.Item2 == (int)TastierKind.Var)));
+= "const"  
+    Ident <out name>            (.
                                 .)
-  { ',' Ident<out name>         (.
-                                    currentScope.Push(new Symbol(name, (int)TastierKind.Var, 1, openScopes.Count-1, currentScope.Count(s => s.Item2 == (int)TastierKind.Var)));
+  ":=" 
+    number                 (.
+                                    n = Convert.ToInt32(t.val); 
+                                    globalDeclarations.Push(new Instruction("", "StoG " + ((currentScope.Count(s => s.Item2 == (int)TastierKind.Const))+3)));
+                                    globalDeclarations.Push(new Instruction("", "Const " + n));
+                                    currentScope.Push(new Symbol(name, (int)TastierKind.Const, (int)TastierType.Integer, openScopes.Count-1, (currentScope.Count((s => s.Item2 == (int)TastierKind.Const))+3)));
                                 .)
-  } ":="                        (.
-
-                                .)
-  number ';'                    (.
-
-                                .).
+    ';'.
 
 ExternDecl                      (.  string name; bool external = true; Scope currentScope = openScopes.Peek(); int count = currentScope.Count; .)
 = "external"
