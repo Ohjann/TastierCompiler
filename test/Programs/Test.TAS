@@ -3,29 +3,23 @@
 // number, the sum of all integers up to that number
 
 program Test {
-  const a := 99;
-  const b := 33;
-  int i;
-
-  void SumUp() {
-    int sum;
-    sum := 0;
-    while (i > 0) { sum := sum + i; i := i - 1; }
+  const a := 100;
+  const b := 50;
+  int i,q;
+  
+  void Sum(){
+      i := 22;
+      q := 99;
+      write i;
+      write q;
   }
 
   void Main() {
     write a;
     write b;
-    read i;
-    if (i < 100) {
-        write a;
-    } else {
-        write 3;
-    }
-    while (i > 0) {
-      SumUp();
-      read i;
-    }
+    string ff;
+    ff := "hello";
+    Sum();
   }
-}
+} 
 
