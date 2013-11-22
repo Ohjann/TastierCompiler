@@ -14,9 +14,11 @@ program Test {
   }
 
   void Main() {
+    write a;
+    write b;
     read i;
     if (i < 100) {
-        write b;
+        write a;
     } else {
         write 3;
     }

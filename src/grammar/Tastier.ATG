@@ -256,10 +256,14 @@ letter = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz".
   cr  = '\r'.
   lf  = '\n'.
   tab = '\t'.
+  HexDigit = digit + 'a' .. 'f'.
+  CharInLine = ANY - '\r' - '\n'.
+  AnyButDoubleQuote = CharInLine - '\"'.
 
 TOKENS
   ident  = letter {letter | digit}.
   number = digit {digit}.
+  String = '"' {AnyButDoubleQuote | "\\\""} '"'.
 
 COMMENTS FROM "/*" TO "*/" NESTED
 COMMENTS FROM "//" TO lf
@@ -371,8 +375,9 @@ ProcDecl                        (.  string name; string label; Scope currentScop
                                     enterInstLocation = program.Count - 1;
                                     label = generateProcedureName(name);
                                     openProcedureDeclarations.Push(name);
-                                    while(globalDeclarations.Count != 0){
-                                        program.Add(globalDeclarations.Pop());
+                                    Stack<Instruction> gDcopy = new Stack<Instruction>(globalDeclarations);
+                                    while(gDcopy.Count != 0){
+                                        program.Add(gDcopy.Pop());
                                     }
 
                                     /*
@@ -641,6 +646,7 @@ VarDecl<bool external>          (.
                                       externalDeclarations.Push(new Symbol(name, (int)TastierKind.Var, (int)type, 0, 0));
                                     } else {
                                       currentScope.Push(new Symbol(name, (int)TastierKind.Var, (int)type, openScopes.Count-1, currentScope.Count(s => s.Item2 == (int)TastierKind.Var)));
+                                    //Console.WriteLine("VarDecl: "+currentScope.Count());
                                     }
                                 .)
   { ',' Ident<out name>         (.
@@ -661,9 +667,11 @@ ConstDecl                       (.
   ":=" 
     number                 (.
                                     n = Convert.ToInt32(t.val); 
-                                    globalDeclarations.Push(new Instruction("", "StoG " + ((currentScope.Count(s => s.Item2 == (int)TastierKind.Const))+3)));
+                                    Symbol sym = new Symbol(name, (int)TastierKind.Const, (int)TastierType.Integer, openScopes.Count-1, currentScope.Count((s => s.Item2 == (int)TastierKind.Const)));
+                                    currentScope.Push(sym);
+                                    //Console.WriteLine("Const: "+currentScope.Count());
                                     globalDeclarations.Push(new Instruction("", "Const " + n));
-                                    currentScope.Push(new Symbol(name, (int)TastierKind.Const, (int)TastierType.Integer, openScopes.Count-1, (currentScope.Count((s => s.Item2 == (int)TastierKind.Const))+3)));
+                                    globalDeclarations.Push(new Instruction("", "StoG " + (sym.Item5+3)));
                                 .)
     ';'.
 
