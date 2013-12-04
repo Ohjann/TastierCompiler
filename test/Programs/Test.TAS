@@ -5,21 +5,14 @@
 program Test {
   const a := 100;
   const b := 50;
-  int i,q;
   
-  void Sum(){
-      i := 22;
-      q := 99;
-      write i;
-      write q;
-  }
-
   void Main() {
-    write a;
-    write b;
-    string ff;
-    ff := "hello";
-    Sum();
+    int j,i,q;
+    q := 2;
+    j := 11;
+    i := 22;
+    write i;
+    write j;
+    write q;
   }
-} 
-
+}
