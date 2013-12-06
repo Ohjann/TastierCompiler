@@ -483,16 +483,15 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                 .)
  
     | Expr<out type> 
+        ['?'
                                 (.
                                     if (type == TastierType.Boolean){
                                         openLabels.Push(generateLabel());
                                         program.Add(new Instruction("", "FJmp " + openLabels.Peek()));
-                                        goto End;  //First time ever using a goto omg
                                     }
                                     else if (type != (TastierType)sym.Item3) {
                                       SemErr("incompatible types");
                                     }
-
                                     if (sym.Item4 == 0) {
                                       if (isExternal) {
                                         program.Add(new Instruction("", "StoG " + sym.Item1));
@@ -505,49 +504,12 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                       int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
                                       program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
                                     }
-                                    End:
                                 .)
-        ['?'
-            Expr<out type>      (.
-                                    Instruction startOfElse = new Instruction(openLabels.Pop(), "Nop");
-                                    openLabels.Push(generateLabel());
-
-                                    if (sym.Item4 == 0) {
-                                      if (isExternal) {
-                                        program.Add(new Instruction("", "StoG " + sym.Item1));
-                                        // if the symbol is external, we also store it by name. The linker will resolve the name to an address.
-                                      } else {
-                                        program.Add(new Instruction("", "StoG " + (sym.Item5+3)));
-                                      }
-                                    }
-                                    else {
-                                      int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
-                                      program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
-                                    }
- 
-                                    program.Add(new Instruction("", "Jmp " + openLabels.Peek()));
-                                    program.Add(startOfElse);
-                                    
-                                .)
+            Expr<out type>
                 ':'
-                 Expr<out type> (.
-                                    if (sym.Item4 == 0) {
-                                      if (isExternal) {
-                                        program.Add(new Instruction("", "StoG " + sym.Item1));
-                                        // if the symbol is external, we also store it by name. The linker will resolve the name to an address.
-                                      } else {
-                                        program.Add(new Instruction("", "StoG " + (sym.Item5+3)));
-                                      }
-                                    }
-                                    else {
-                                      int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
-                                      program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
-                                    }
-                                    program.Add(new Instruction(openLabels.Pop(), "Nop")); 
- 
- 
-                                .)
-                               ] ) 
+                    Expr<out type>]
+
+                                  ) 
   ';'
   | '(' ')' ';'                 (.
                                     if ((TastierKind)sym.Item2 != TastierKind.Proc) {
@@ -595,34 +557,6 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                     program.Add(new Instruction("", "FJmp " + openLabels.Peek())); // jump to the loop end label if condition is false
                                 .)
       Stat                      (.  program.Add(new Instruction("", "Jmp " + loopStartLabel));
-                                    program.Add(new Instruction(openLabels.Pop(), "Nop")); // put the loop end label here
-                                .)
-
-| "for"                          (. List<Instruction> tempList = new List<Instruction>{}; .) 
-    '(' Stat 
-                                 (. 
-                                    string loopStartLabel = generateLabel();
-                                    openLabels.Push(generateLabel()); //second label is for the loop end
-                                    program.Add(new Instruction(loopStartLabel, "Nop"));
-                                 .)
-       Stat 
-                                (.
-                                   int listlength = program.Count()-1;
-                                   tempList = program.GetRange(listlength-3,4);
-                                   program.RemoveRange(listlength-3,4);
-                                .)
-       Expr<out type> ')'
-                                (.
-                                    if((TastierType)type != TastierType.Boolean) {
-                                        SemErr("boolean type expected");
-                                    }
-                                    program.Add(new Instruction("", "FJmp " + openLabels.Peek())); // jump to the loop end label if condition is false
-                                .)
-      Stat                      (.  
-                                    foreach(Instruction instruct in tempList){
-                                        program.Add(instruct);
-                                    }
-                                    program.Add(new Instruction("", "Jmp " + loopStartLabel));
                                     program.Add(new Instruction(openLabels.Pop(), "Nop")); // put the loop end label here
                                 .)
 

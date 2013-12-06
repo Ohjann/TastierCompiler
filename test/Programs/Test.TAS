@@ -3,16 +3,21 @@
 // number, the sum of all integers up to that number
 
 program Test {
-  const a := 100;
-  const b := 50;
   
   void Main() {
-    int j,i,q;
-    q := 2;
-    j := 11;
-    i := 22;
-    write i;
-    write j;
+    int i;
+    int q;
+    int j;
+    int m;
+    q:=5;
+    m:=0;
+    for( i:= 0; i:=i+1; i<10){
+        q:= q+1;
+        for( j:=0; j:=j+1; j<10){
+            m := m+1;
+        }
+    }
+    write m;
     write q;
   }
 }
