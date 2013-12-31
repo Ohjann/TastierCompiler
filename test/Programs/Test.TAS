@@ -4,20 +4,11 @@
 
 program Test {
   
+  const b := 13;
+
   void Main() {
-    int i;
-    int q;
-    int j;
-    int m;
-    q:=5;
-    m:=0;
-    for( i:= 0; i:=i+1; i<10){
-        q:= q+1;
-        for( j:=0; j:=j+1; j<10){
-            m := m+1;
-        }
-    }
-    write m;
-    write q;
+      string a;
+      a := "hello";
+      write a;
   }
 }

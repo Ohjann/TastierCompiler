@@ -328,13 +328,26 @@ Factor<out TastierType type>    (.  int n; Symbol sym; string name;
                                             int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
                                             program.Add(new Instruction("", "Load " + lexicalLevelDifference + " " + sym.Item5));
                                         }
-                                      } else SemErr("variable expected");
+                                      } else SemErr("variable or constant expected");
                                     }
                                 .)
   | number                      (.
                                     n = Convert.ToInt32(t.val);
                                     program.Add(new Instruction("", "Const " + n));
                                     type = TastierType.Integer;
+                                .)
+  | string                      (.
+                                    type = TastierType.String; 
+                                    byte[] asciiBytes = System.Text.Encoding.ASCII.GetBytes(t.val);
+                                    int[] quoteStrip = new int[asciiBytes.Length-2];
+                                    for(int i=1; i<(asciiBytes.Length)-1; i++){
+                                        quoteStrip[i-1]= Convert.ToInt32(asciiBytes[i]);
+                                        }
+                                    for(int i=0; i<quoteStrip.Length; i++){
+                                        stackPointer++;
+                                        program.Add(new Instruction("", "Const " + quoteStrip[i]));
+                                        program.Add(new Instruction("", "StoG " + (sym.Item5+stackPointer)));
+                                    }
                                 .)
   | '-'
     Factor<out type>            (.
@@ -466,48 +479,37 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                     }
                                 .)
 
-  ( string                      (.  
-                                    sym = lookup(openScopes, name);
-                                    type = TastierType.String; 
-                                    byte[] asciiBytes = System.Text.Encoding.ASCII.GetBytes(t.val);
-                                    int[] quoteStrip = new int[asciiBytes.Length-2];
-                                    for(int i=1; i<(asciiBytes.Length)-1; i++){
-                                        quoteStrip[i-1]= Convert.ToInt32(asciiBytes[i]);
-                                        }
-                                    for(int i=0; i<quoteStrip.Length; i++){
-                                        stackPointer++;
-                                        program.Add(new Instruction("", "Const " + quoteStrip[i]));
-                                        program.Add(new Instruction("", "StoG " + (sym.Item5+stackPointer)));
-                                    }
-
-                                .)
- 
-    | Expr<out type> 
+  Expr<out type> 
                                 (.
-                                    if (type == TastierType.Boolean){
+                                    int isTri = -1;
+                                    if (type != (TastierType)sym.Item3) {
+                                        if(type == TastierType.Boolean){
+                                            isTri = 0; 
+                                        }
+                                        else{
+                                            SemErr("incompatible types");
+                                        }
+                                    }
+                                    else{    
+                                        if (sym.Item4 == 0) {
+                                            if (isExternal) {
+                                                program.Add(new Instruction("", "StoG " + sym.Item1));
+                                                // if the symbol is external, we also store it by name. The linker will resolve the name to an address.
+                                            } else {
+                                                program.Add(new Instruction("", "StoG " + (sym.Item5+3)));
+                                            }
+                                        }
+                                        else {
+                                            int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
+                                            program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
+                                        }
+                                    }
+                                .)
+        ['?'                    (.
                                         openLabels.Push(generateLabel());
                                         program.Add(new Instruction("", "FJmp " + openLabels.Peek()));
-                                        goto End;  //First time ever using a goto omg
-                                    }
-                                    else if (type != (TastierType)sym.Item3) {
-                                      SemErr("incompatible types");
-                                    }
-
-                                    if (sym.Item4 == 0) {
-                                      if (isExternal) {
-                                        program.Add(new Instruction("", "StoG " + sym.Item1));
-                                        // if the symbol is external, we also store it by name. The linker will resolve the name to an address.
-                                      } else {
-                                        program.Add(new Instruction("", "StoG " + (sym.Item5+3)));
-                                      }
-                                    }
-                                    else {
-                                      int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
-                                      program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
-                                    }
-                                    End:
+                                        isTri = 1;
                                 .)
-        ['?'
             Expr<out type>      (.
                                     Instruction startOfElse = new Instruction(openLabels.Pop(), "Nop");
                                     openLabels.Push(generateLabel());
@@ -547,8 +549,14 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
  
  
                                 .)
-                               ] ) 
-  ';'
+                               ]  
+  ';'                           (.
+                                        // Has not got into ternary section so is not a ternary operation and hence must be an incompatible type
+                                        if(isTri==0){
+                                            SemErr("incompatible types");
+                                        }
+                                .)
+
   | '(' ')' ';'                 (.
                                     if ((TastierKind)sym.Item2 != TastierKind.Proc) {
                                       SemErr("object is not a procedure");
@@ -663,8 +671,8 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
 
 | "write"
   Expr<out type> ';'            (.
-                                    if (type != TastierType.Integer) {
-                                      SemErr("integer type expected");
+                                    if ((type != TastierType.Integer) && (type != TastierType.String)) {
+                                      SemErr("Incompatible type "+type+", String or Integer expected");
                                     }
                                     program.Add(new Instruction("", "Write"));
                                 .)
