@@ -4,11 +4,15 @@
 
 program Test {
   
-  const b := 13;
+  const f := 111;
 
   void Main() {
-      string a;
-      a := "hello";
-      write a;
+      int b [3] := {44,88};
+      int c;
+      c := 77;
+      b := 171;
+      b[1] := 3;
+      write c;
+      write f;
   }
 }
