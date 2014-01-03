@@ -107,7 +107,9 @@ COMPILER Tastier
     * Instruction.Item1 -> label
     * Instruction.Item2 -> the actual instruction, as a string
 */
+class Pointers : List<Tuple<string, int, int>>{};
 
+Pointers pointers = new Pointers();
 Stack<Scope> openScopes = new Stack<Scope>();
 Stack<Instruction> globalDeclarations = new Stack<Instruction>();
 Scope externalDeclarations = new Scope();
@@ -300,10 +302,15 @@ Expr<out TastierType type>      (.  TastierType type1; Instruction inst; .)
 
 /*------------------------------------------------------------------------*/
 
-Factor<out TastierType type>    (.  int n; Symbol sym; string name;
+Factor<out TastierType type>    (.  int n; Symbol sym; string name; int index = -1;
                                 .)
 =                               (.  type = TastierType.Undefined; .)
-  ( Ident<out name>             (.
+  ( Ident<out name>  
+       ['['number               (.
+                                    index = Convert.ToInt32(t.val);
+                                .)
+       
+       ']' ]                    (.
                                     bool isExternal = false; //CS3071 students can ignore external declarations, since they only deal with compilation of single files.
                                     sym = lookup(openScopes, name);
                                     if (sym == null) {
@@ -317,7 +324,31 @@ Factor<out TastierType type>    (.  int n; Symbol sym; string name;
                                     else {
                                       type = (TastierType)sym.Item3;
                                       if (((TastierKind)sym.Item2 == TastierKind.Var) || ((TastierKind)sym.Item2 == TastierKind.Const)) {
-                                        if (sym.Item4 == 0) {
+                                        if (sym.Item3>=10){
+                                            if (isExternal) {
+                                              program.Add(new Instruction("", "LoadG " + sym.Item1));
+                                              // if the symbol is external, we load it by name. The linker will resolve the name to an address.
+                                            } else {
+                                                int address = -1;
+                                                int size = -1;
+                                                foreach (var ptr in  pointers){
+                                                    if (ptr.Item1.Equals(name)){
+                                                        address = ptr.Item2;
+                                                        size = ptr.Item3;
+                                                    }
+                                                }
+                                                if( address == -1 ) SemErr("Something has gone wrong, please report"); 
+                                                // Should never get to that but left in for debugging purposes
+                                                if(index>=size){
+                                                    SemErr("Array index out of bound");
+                                                }
+                                                else{
+                                                    program.Add(new Instruction("", "LoadG " + ((address)+index)));
+                                                }
+
+                                             }
+                                        }
+                                        else if (sym.Item4 == 0) {
                                             if (isExternal) {
                                               program.Add(new Instruction("", "LoadG " + sym.Item1));
                                               // if the symbol is external, we load it by name. The linker will resolve the name to an address.
@@ -448,7 +479,7 @@ SimExpr<out TastierType type>   (.  TastierType type1; Instruction inst; .)
 
 /*------------------------------------------------------------------------*/
 
-Stat                            (.  TastierType type; string name; Symbol sym; bool external = false; bool isExternal = false; bool isArray = false; int index = -1; .)
+Stat                            (.  TastierType type; string name; Symbol sym; bool external = false; bool isExternal = false; int index = -1; .)
 
 = Ident<out name>               (.
                                     sym = lookup(openScopes, name);
@@ -496,23 +527,31 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                         }
                                     }
                                     else if (sym.Item3>=10){
-                                        //TODO: Retrieving arrays
-                                         if (sym.Item4 == 0) {
+                                        Console.WriteLine("djhdsfjhsdf");
                                             if (isExternal) {
                                                 program.Add(new Instruction("", "StoG " + sym.Item1));
                                                 // if the symbol is external, we also store it by name. The linker will resolve the name to an address.
                                             } else {
-                                                int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
-                                                program.Add(new Instruction("", "Load " + lexicalLevelDifference + " " + sym.Item5));
-                                                program.Add(new Instruction("", "StoG " + (sym.Item5+3)));
+                                                int address = -1;
+                                                int size = -1;
+                                                foreach (var ptr in  pointers){
+                                                    if (ptr.Item1.Equals(name)){
+                                                        address = ptr.Item2;
+                                                        size = ptr.Item3;
+                                                        }
+                                                }
+                                                if( address == -1 ) SemErr("Something has gone wrong, please report"); 
+                                                // Should never get to that but left in for debugging purposes
+                                                if(index>=size){
+                                                    SemErr("Array index out of bound");
+                                                }
+                                                else{
+                                                    program.Add(new Instruction("", "StoG " + ((address)+index)));
+                                                }
                                             }
-                                        }
-                                        else {
-                                            int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
-                                            program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
-                                        }
                                     }
                                     else{    
+                                        Console.WriteLine("222djhsdf");
                                         if (sym.Item4 == 0) {
                                             if (isExternal) {
                                                 program.Add(new Instruction("", "StoG " + sym.Item1));
@@ -693,8 +732,11 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                 .)
 
 | "write"
-  Expr<out type> ';'            (.
-                                    if ((type != TastierType.Integer) && (type != TastierType.String)) {
+  Expr<out type> 
+  [ '[' number ']' ]
+  
+  ';'                           (.
+                                    if (((int)type%10 != (int)TastierType.Integer) && ((int)type%10 != (int)TastierType.String)) {
                                       SemErr("Incompatible type "+type+", String or Integer expected");
                                     }
                                     program.Add(new Instruction("", "Write"));
@@ -779,19 +821,24 @@ VarDecl<bool external>          (.
                                     currentScope.Push(sym);
                                     n = Convert.ToInt32(t.val); 
                                     // Allocatting space in the heap 
-                                    stackFramePointer++;
-                                    int index = stackFramePointer;
+                                    int address = stackFramePointer+1;
+                                    Console.WriteLine("StackFramePointer: "+address+"sym.Item5: "+sym.Item5);
+                                    /*stackFramePointer++;
                                     program.Add(new Instruction("", "Const " + n)); // First element is the length of the array
-                                    program.Add(new Instruction("", "StoG " + (sym.Item5+stackFramePointer)));
+                                    program.Add(new Instruction("", "StoG " + (sym.Item5+stackFramePointer)));*/
                                     for(int i=n; i>0; i--){
                                         stackFramePointer++;
                                         program.Add(new Instruction("", "Const " + 0)); //Initialzing at 0
-                                        program.Add(new Instruction("", "StoG " + (sym.Item5+stackFramePointer)));
+                                        program.Add(new Instruction("", "StoG " + (stackFramePointer)));
                                     }
-                                    // Local pointer who's value is the address of the array on the heap
+                                    /* Local pointer who's value is the address of the array on the heap
+                                    XXX
                                     program.Add(new Instruction("", "Const " + index));
                                     int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
                                     program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
+                                    XXX */
+                                    Console.WriteLine("name: "+name+" index: "+address+" size: "+n);
+                                    pointers.Add(Tuple.Create(name, address, n));
                                 .)
       ']' 
        [

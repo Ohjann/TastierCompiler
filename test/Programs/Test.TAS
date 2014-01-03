@@ -4,15 +4,19 @@
 
 program Test {
   
-  const f := 111;
+  const k := 10;
 
   void Main() {
-      int b [3] := {44,88};
-      int c;
-      c := 77;
-      b := 171;
-      b[1] := 3;
-      write c;
-      write f;
+      int i;
+      int c[4];
+
+      for(i:=0; i:=i+1; i<4){
+          c[0] := 1;
+      }
+      write c[0];
+      write c[1];
+      write c[2];
+      write c[3];
+      write k;
   }
 }
