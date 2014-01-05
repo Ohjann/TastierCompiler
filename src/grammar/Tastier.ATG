@@ -479,7 +479,7 @@ SimExpr<out TastierType type>   (.  TastierType type1; Instruction inst; .)
 
 /*------------------------------------------------------------------------*/
 
-Stat                            (.  TastierType type; string name; Symbol sym; bool external = false; bool isExternal = false; int index = -1; .)
+Stat                            (.  TastierType type; string name; Symbol sym; bool external = false; bool isExternal = false; int index = -1; int n;.)
 
 = Ident<out name>               (.
                                     sym = lookup(openScopes, name);
@@ -527,7 +527,6 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                         }
                                     }
                                     else if (sym.Item3>=10){
-                                        Console.WriteLine("djhdsfjhsdf");
                                             if (isExternal) {
                                                 program.Add(new Instruction("", "StoG " + sym.Item1));
                                                 // if the symbol is external, we also store it by name. The linker will resolve the name to an address.
@@ -551,7 +550,6 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                             }
                                     }
                                     else{    
-                                        Console.WriteLine("222djhsdf");
                                         if (sym.Item4 == 0) {
                                             if (isExternal) {
                                                 program.Add(new Instruction("", "StoG " + sym.Item1));
@@ -696,6 +694,86 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                     program.Add(new Instruction(openLabels.Pop(), "Nop")); // put the loop end label here
                                 .)
 
+| "switch"                      (.
+                                    program.Add(new Instruction("", "Nop")); 
+                                    // So we know where the beginning of the switch statement starts
+                                    bool waterfall = true;
+                                    // boolean for tracking if the case has a break or not, it's assumed that none of them have
+                                .)
+    
+    '(' Expr<out type>          (.  
+                                    List<Instruction> tempList = new List<Instruction>{};
+                                    int size = program.Count-1;
+                                    Instruction nop = new Instruction("", "Nop"); //for comparing
+                                    while(!program[size].Equals(nop)){
+                                        // Copying each instruction up until the beginning of the switch statement so that 
+                                        // we can compare them to each case
+                                        tempList.Add(program[size]);
+                                        size--;
+                                    }
+                                    tempList.Reverse();  // Reverse to get it in the correct order
+                                    string endLabel = generateLabel();   // Generate Label for the end of the switch statement
+                                    Console.WriteLine(endLabel);
+                                .)
+    ')' '{'
+    "case" number               (.
+                                    n = Convert.ToInt32(t.val); 
+                                    program.Add(new Instruction("", "Const " + n));
+                                    program.Add(new Instruction("", "Equ")); 
+                                    openLabels.Push(generateLabel());
+                                    program.Add(new Instruction("", "FJmp " + openLabels.Peek()));
+                                .)
+    ':'
+    {Stat} ["break;"            (.
+                                    program.Add(new Instruction("", "Jmp " + endLabel)); // Jumping to end of switch
+                                    waterfall = false; // because there is a break it won't be falling through to the next case
+                                .)
+    ]
+    {"case" number              (.
+                                    // Adding a jump statement to skip over the comparisons if there is no break in the previous case
+                                    string waterfallLabel = null;
+                                    if(waterfall){
+                                        waterfallLabel = generateLabel();
+                                        program.Add(new Instruction("", "Jmp " + waterfallLabel));
+                                    }
+
+                                    // Beginning of next case
+                                    Instruction startNextCase = new Instruction(openLabels.Pop(), "Nop");
+                                    program.Add(startNextCase);
+                                    // Adding the condition from the switch to this case so we can compare to the case condition
+                                    foreach(Instruction instruct in tempList){
+                                        program.Add(instruct);
+                                    }
+                                    n = Convert.ToInt32(t.val); 
+                                    program.Add(new Instruction("", "Const " + n));
+                                    program.Add(new Instruction("", "Equ")); 
+                                    openLabels.Push(generateLabel());
+                                    program.Add(new Instruction("", "FJmp " + openLabels.Peek()));
+                                .) 
+    ':'                         (.
+                                    if(waterfall){
+                                        program.Add( new Instruction(waterfallLabel, "Nop") );
+                                        // Adding the label just before the statements of this case so that they may be executed also
+                                    }
+                                    waterfall = true;   // Set waterfall back to true as each case is assumed to not have a break
+                                .)
+    {Stat} ["break;"            (.
+                                    program.Add(new Instruction("", "Jmp " + endLabel));
+                                    waterfall = false;
+                                .)
+    ]}
+    ("default" ':'              (. 
+                                    program.Add(new Instruction(openLabels.Pop(), "Nop" ));
+                                .) 
+    {Stat} ["break;"]           (.
+                                    program.Add(new Instruction(endLabel, "Nop")); 
+                                .)
+    |                           (.  
+                                    program.Add(new Instruction(openLabels.Pop(), "Nop" ));
+                                    program.Add(new Instruction(endLabel, "Nop")); 
+                                .)
+    )
+    '}'
 | "read"
   Ident<out name> ';'           (.
                                     sym = lookup(openScopes, name);
@@ -822,7 +900,6 @@ VarDecl<bool external>          (.
                                     n = Convert.ToInt32(t.val); 
                                     // Allocatting space in the heap 
                                     int address = stackFramePointer+1;
-                                    Console.WriteLine("StackFramePointer: "+address+"sym.Item5: "+sym.Item5);
                                     /*stackFramePointer++;
                                     program.Add(new Instruction("", "Const " + n)); // First element is the length of the array
                                     program.Add(new Instruction("", "StoG " + (sym.Item5+stackFramePointer)));*/
@@ -837,7 +914,6 @@ VarDecl<bool external>          (.
                                     int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
                                     program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
                                     XXX */
-                                    Console.WriteLine("name: "+name+" index: "+address+" size: "+n);
                                     pointers.Add(Tuple.Create(name, address, n));
                                 .)
       ']' 
