@@ -3,24 +3,29 @@
 // number, the sum of all integers up to that number
 
 program Test {
+
+
+  struct myStruct {
+      int i;
+      int j;
+      bool yea;
+  };
+
+  struct anotherOne {
+      int i;
+      int j;
+  };
+  const k :=3;
   
   void Main() {
-      int b;
-      int i;
-      i:=2;
-
-      switch(i+4){
-            case 7: b := 3;
-
-            case 3: b:=5;
-                    break;
-
-            case 5: b:=22;
-                    break;
-
-            default: b:=99;
-      }
-      write b;
-
+      struct myStruct a;
+      struct myStruct hello; 
+      struct anotherOne pleasework;
+      hello.i := 44;
+      a.i := 22;
+      pleasework.i := 999;
+      write a.i;
+      write hello.i;
+      write pleasework.i;
   }
 }

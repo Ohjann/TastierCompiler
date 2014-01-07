@@ -14,7 +14,8 @@ COMPILER Tastier
   enum TastierKind : int {  // kinds of symbol
     Var,
     Const,
-    Proc
+    Proc,
+    Struct
   };
 
 /*
@@ -384,7 +385,10 @@ Factor<out TastierType type>    (.  int n; Symbol sym; string name; int index = 
 /*------------------------------------------------------------------------*/
 
 Ident<out string name>
-= ident                         (.  name = t.val; .).
+= ident                         (.  name = t.val; .)
+    ['.'                        (.  name = name + t.val; .)
+        ident                   (.  name = name + t.val; .)
+    ].
 
 /*------------------------------------------------------------------------*/
 
@@ -830,7 +834,7 @@ Tastier                         (.  string name; bool external = false; .)
                                     openScopes.Push(new Scope());
                                 .)
   '{'
-  { ConstDecl | VarDecl<external> | ProcDecl | ExternDecl }
+  { StructDecl | ConstDecl | VarDecl<external> | ProcDecl | ExternDecl }
   '}'                           (.
                                     if (openScopes.Peek().Count == 0) {
                                       Warn("Warning: Program " + name + " is empty ");
@@ -898,22 +902,13 @@ VarDecl<bool external>          (.
                                     sym = new Symbol(name, (int)TastierKind.Var, (int)type+10, openScopes.Count-1, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const))));
                                     currentScope.Push(sym);
                                     n = Convert.ToInt32(t.val); 
-                                    // Allocatting space in the heap 
                                     int address = stackFramePointer+1;
-                                    /*stackFramePointer++;
-                                    program.Add(new Instruction("", "Const " + n)); // First element is the length of the array
-                                    program.Add(new Instruction("", "StoG " + (sym.Item5+stackFramePointer)));*/
+                                    // Allocatting space in the heap 
                                     for(int i=n; i>0; i--){
                                         stackFramePointer++;
                                         program.Add(new Instruction("", "Const " + 0)); //Initialzing at 0
                                         program.Add(new Instruction("", "StoG " + (stackFramePointer)));
                                     }
-                                    /* Local pointer who's value is the address of the array on the heap
-                                    XXX
-                                    program.Add(new Instruction("", "Const " + index));
-                                    int lexicalLevelDifference = Math.Abs(openScopes.Count - sym.Item4)-1;
-                                    program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (sym.Item5)));
-                                    XXX */
                                     pointers.Add(Tuple.Create(name, address, n));
                                 .)
       ']' 
@@ -945,14 +940,7 @@ VarDecl<bool external>          (.
                                     if (external) {
                                       externalDeclarations.Push(new Symbol(name, (int)TastierKind.Var, (int)type, 0, 0));
                                     } else {
-                                      if(type == TastierType.String){
-                                          //FIXME: Too hacky
-                                        currentScope.Push(new Symbol(name, (int)TastierKind.Var, (int)type, 0, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const)))));
-                                      }
-
-                                      else{
                                         currentScope.Push(new Symbol(name, (int)TastierKind.Var, (int)type, openScopes.Count-1, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const)))));
-                                      }
                                     }
                                 .)
  
@@ -963,7 +951,29 @@ VarDecl<bool external>          (.
                                       currentScope.Push(new Symbol(name, (int)TastierKind.Var, (int)type, openScopes.Count-1, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const)))));
                                     }
                                 .)
-  } )';'.
+  } )';'
+
+  |  "struct"                   (. string name1;  .)
+              Ident<out name>   (.
+                                    sym = lookup(openScopes, name);
+                                    if (sym == null) {
+                                      SemErr("reference to undefined struct " + name);
+                                    }
+                                .)
+  Ident<out name1>              (.
+                                    // Modified version of "lookup" function which searches for symbols associated with the struct
+                                    foreach (Scope scope in openScopes){
+                                        foreach (Symbol s in scope) {
+                                            string[] structname = s.Item1.Split('.');
+                                            if((structname[0] == name)&&(structname.Length>1)){
+                                                currentScope.Push(new Symbol(name1+"."+structname[1], s.Item2, s.Item3, openScopes.Count-1, currentScope.Count((s1 => (s1.Item2 == (int)TastierKind.Var) || (s1.Item2 == (int)TastierKind.Const)))));
+                                                Console.WriteLine(currentScope.Peek());
+                                            }
+                                        }
+                                    }
+                                .)
+  ';'
+  .
 
 /*------------------------------------------------------------------------*/
 
@@ -976,15 +986,38 @@ ConstDecl                       (.
                                     currentScope.Push(sym);
                                 .)
   ":=" 
-    number                 (.
+    number                      (.
                                     if(sym.Item5==0){
                                         stackFramePointer++;
                                     }
                                     n = Convert.ToInt32(t.val); 
                                     globalDeclarations.Push(new Instruction("", "Const " + n));
                                     globalDeclarations.Push(new Instruction("", "StoG " + (sym.Item5+stackFramePointer)));
-                           .)
+                                .)
     ';'.
+/*------------------------------------------------------------------------*/
+
+StructDecl                      (.  string name, name1; TastierType type; Scope currentScope = openScopes.Peek(); .)
+= "struct" Ident <out name>     (.
+                                    currentScope.Push(new Symbol(name, (int)TastierKind.Struct, (int)TastierType.Undefined, openScopes.Count-1, currentScope.Count((s => s.Item2 == (int)TastierKind.Struct))));
+                                    openScopes.Push(new Scope());
+                                        Console.WriteLine(currentScope.Peek());
+                                    currentScope = openScopes.Peek();
+                                .)
+    '{'
+        {
+           // Cannot use VarDecl as the Struct name has to be inserted into the symbol name
+           Type<out type>
+           Ident<out name1>     (.
+                                        currentScope.Push(new Symbol(name+"."+name1, (int)TastierKind.Var, (int)type, openScopes.Count-1, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const)))));
+                                        Console.WriteLine(currentScope.Peek());
+                                .)
+           {',' Ident<out name1>}
+           ';'
+            }
+    '}'';'.
+
+/*------------------------------------------------------------------------*/
 
 ExternDecl                      (.  string name; bool external = true; Scope currentScope = openScopes.Peek(); int count = currentScope.Count; .)
 = "external"
