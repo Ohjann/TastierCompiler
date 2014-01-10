@@ -5,27 +5,54 @@
 program Test {
 
 
-  struct myStruct {
+  Struct myStruct {
       int i;
       int j;
       bool yea;
   };
 
-  struct anotherOne {
+  Struct anotherOne {
       int i;
       int j;
   };
+
   const k :=3;
-  
+
+  void afunction(){
+      int jj;
+      jj:=33;
+      write jj;
+  }
+
   void Main() {
       struct myStruct a;
       struct myStruct hello; 
-      struct anotherOne pleasework;
-      hello.i := 44;
+      write 0;
+      write 0;
+      write 0;
       a.i := 22;
-      pleasework.i := 999;
+      a.j := 33;
+      a.yea := true;
       write a.i;
+      write a.j;
+      write 0;
+      write 0;
+      write 0;
+      clone(a,hello);
+      a.i := 222;
+      a.j := 333;
       write hello.i;
-      write pleasework.i;
+      write hello.j;
+      write a.i;
+      write a.j;
+      write 0;
+      write 0;
+      write 0;
+      afunction();
+
+      int array[10];
+      array[2] := 11;
+      write array[2];
   }
+
 }

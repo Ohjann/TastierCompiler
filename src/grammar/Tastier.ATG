@@ -108,11 +108,21 @@ COMPILER Tastier
     * Instruction.Item1 -> label
     * Instruction.Item2 -> the actual instruction, as a string
 */
+
 class Pointers : List<Tuple<string, int, int>>{};
+/* List of arrays
+    * Pointers.Item1 -> label
+    * Pointers.Item2 -> position
+    * Pointers.Item3 -> size
+*/
+
 
 Pointers pointers = new Pointers();
 Stack<Scope> openScopes = new Stack<Scope>();
+
 Stack<Instruction> globalDeclarations = new Stack<Instruction>();
+// Stack for storing global Declarations such as constants and passed parameters
+
 Scope externalDeclarations = new Scope();
 int stackFramePointer = 2;
 
@@ -523,10 +533,10 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                 (.
                                     int isTri = -1;
                                     if ((int)type != sym.Item3%10) {
-                                        if(type == TastierType.Boolean){
+                                        if (type == TastierType.Boolean){
                                             isTri = 0; 
                                         }
-                                        else{
+                                        else {
                                             SemErr("incompatible types");
                                         }
                                     }
@@ -717,7 +727,6 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                     }
                                     tempList.Reverse();  // Reverse to get it in the correct order
                                     string endLabel = generateLabel();   // Generate Label for the end of the switch statement
-                                    Console.WriteLine(endLabel);
                                 .)
     ')' '{'
     "case" number               (.
@@ -823,6 +832,64 @@ Stat                            (.  TastierType type; string name; Symbol sym; b
                                     }
                                     program.Add(new Instruction("", "Write"));
                                 .)
+| "clone"                       (.  string original, clone; Symbol symOrigin, symClone;.)
+
+        /*
+        * Function for non-destructive copying of each of a structs members
+        * from one struct to another.
+        */
+    '('Ident<out original>      (.
+                                    symOrigin = lookup(openScopes, original);
+                                    if((TastierKind)symOrigin.Item2 != TastierKind.Struct){
+                                        SemErr("Cannot clone non-struct");
+                                    }
+                                .)
+    ',' Ident<out clone>        (.  
+                                    symClone = lookup(openScopes, clone);
+                                    if((TastierKind)symClone.Item2 != TastierKind.Struct){
+                                        SemErr("Cannot clone non-struct");
+                                    }
+
+                                    // Get list of all symbols associated with struct
+                                    List<Symbol> originalsyms = new List<Symbol>();
+                                    List<Symbol> clonesyms = new List<Symbol>();
+                                    foreach (Scope scope in openScopes){
+                                        foreach (Symbol s in scope){
+                                            string[] structname = s.Item1.Split('.');
+                                            if((structname[0] == original)&&(structname.Length>1)){
+                                                originalsyms.Add(s);
+                                            }
+                                            else if((structname[0] == clone)&&(structname.Length>1)){
+                                                clonesyms.Add(s);
+                                            }
+                                        }
+                                    }
+                                    if(originalsyms.Count!=clonesyms.Count){
+                                        // If they don't have the same amount of symbols then they must be two different structs
+                                        SemErr("Can only clone structs of the same type");
+                                    }
+                                    else {
+                                        for(int i=0; i<originalsyms.Count; i++){
+                                            string[] symbolname = originalsyms[i].Item1.Split('.');
+                                            string[] symbolname1 = clonesyms[i].Item1.Split('.');
+                                            if(symbolname[1]!=symbolname1[1]){
+                                                // If the variable names are not the same then they must be two different structs
+                                                SemErr("Can only clone structs of the same type");
+                                                break;
+                                            }
+                                            else if(originalsyms[i].Item3!=clonesyms[i].Item3){
+                                                // Variables have same name but different type so must be two different structs 
+                                                SemErr("Can only clone structs of the same type");
+                                            }
+                                                int lexicalLevelDifference = Math.Abs(openScopes.Count - originalsyms[i].Item4)-1;
+                                                program.Add(new Instruction("", "Load " + lexicalLevelDifference + " " + originalsyms[i].Item5));
+                                                lexicalLevelDifference = Math.Abs(openScopes.Count - clonesyms[i].Item4)-1;
+                                                program.Add(new Instruction("", "Sto " + lexicalLevelDifference + " " + (clonesyms[i].Item5)));
+                                        }
+                                    }
+                                .)
+    ')' ';'
+
 
 | '{' { Stat | VarDecl<external> } '}' .
 
@@ -845,6 +912,9 @@ Tastier                         (.  string name; bool external = false; .)
                                       if (s.Item2 == (int)TastierKind.Const){
                                        header.Add(new Instruction("", ".const " + ((int)s.Item3) + " " + s.Item1));
                                       }
+                                      else if (s.Item2 == (int)TastierKind.Struct){
+                                       header.Add(new Instruction("", ".struct " + ((int)s.Item3) + " " + s.Item1));
+                                      }
                                       else if (s.Item2 == (int)TastierKind.Var) {
                                         header.Add(new Instruction("", ".var " + ((int)s.Item3) + " " + s.Item1));
                                       } else if (s.Item2 == (int)TastierKind.Proc) {
@@ -853,6 +923,7 @@ Tastier                         (.  string name; bool external = false; .)
                                         SemErr("global item " + s.Item1 + " has no defined type");
                                       }
                                     }
+
                                     foreach (Symbol s in externalDeclarations) {
                                       if (s.Item2 == (int)TastierKind.Var) {
                                         header.Add(new Instruction("", ".external var " + ((int)s.Item3) + " " + s.Item1));
@@ -876,7 +947,16 @@ Term<out TastierType type>      (.  TastierType type1; Instruction inst; .)
                                         type1 != TastierType.Integer) {
                                       SemErr("integer type expected");
                                     }
-                                    program.Add(inst);
+                                    // Check to see if they are attempting to divide by zero
+                                    Instruction zerocheck = program[program.Count-1] ;
+                                    if(inst.Item2.Contains("Div")){
+                                        if((zerocheck.Item2.Contains("Const"))&&(zerocheck.Item2.Contains("0"))){
+                                            SemErr("division by zero is undefined");
+                                        }
+                                    }
+                                    else{
+                                        program.Add(inst);
+                                    }
                                 .)
   }.
 
@@ -903,7 +983,7 @@ VarDecl<bool external>          (.
                                     currentScope.Push(sym);
                                     n = Convert.ToInt32(t.val); 
                                     int address = stackFramePointer+1;
-                                    // Allocatting space in the heap 
+                                    // Allocatting space
                                     for(int i=n; i>0; i--){
                                         stackFramePointer++;
                                         program.Add(new Instruction("", "Const " + 0)); //Initialzing at 0
@@ -965,10 +1045,14 @@ VarDecl<bool external>          (.
                                     foreach (Scope scope in openScopes){
                                         foreach (Symbol s in scope) {
                                             string[] structname = s.Item1.Split('.');
-                                            if((structname[0] == name)&&(structname.Length>1)){
-                                                currentScope.Push(new Symbol(name1+"."+structname[1], s.Item2, s.Item3, openScopes.Count-1, currentScope.Count((s1 => (s1.Item2 == (int)TastierKind.Var) || (s1.Item2 == (int)TastierKind.Const)))));
-                                                Console.WriteLine(currentScope.Peek());
+                                            if(structname[0] == name){
+                                                if(structname.Length>1){
+                                                currentScope.Push(new Symbol(name1+"."+structname[1], (int)TastierKind.Var, s.Item3, openScopes.Count-1, currentScope.Count((s1 => (s1.Item2 == (int)TastierKind.Var) || (s1.Item2 == (int)TastierKind.Const)))));
                                             }
+                                                else if(structname.Length==1){
+                                                currentScope.Push(new Symbol(name1, s.Item2, s.Item3, openScopes.Count-1, currentScope.Count((s1 => (s1.Item2 == (int)TastierKind.Var) || (s1.Item2 == (int)TastierKind.Const)))));
+                                                }
+                                        }
                                         }
                                     }
                                 .)
@@ -998,23 +1082,21 @@ ConstDecl                       (.
 /*------------------------------------------------------------------------*/
 
 StructDecl                      (.  string name, name1; TastierType type; Scope currentScope = openScopes.Peek(); .)
-= "struct" Ident <out name>     (.
+= "Struct" Ident <out name>     (.
                                     currentScope.Push(new Symbol(name, (int)TastierKind.Struct, (int)TastierType.Undefined, openScopes.Count-1, currentScope.Count((s => s.Item2 == (int)TastierKind.Struct))));
                                     openScopes.Push(new Scope());
-                                        Console.WriteLine(currentScope.Peek());
                                     currentScope = openScopes.Peek();
                                 .)
     '{'
         {
-           // Cannot use VarDecl as the Struct name has to be inserted into the symbol name
-           Type<out type>
-           Ident<out name1>     (.
-                                        currentScope.Push(new Symbol(name+"."+name1, (int)TastierKind.Var, (int)type, openScopes.Count-1, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const)))));
-                                        Console.WriteLine(currentScope.Peek());
+        // Cannot use VarDecl as the Struct name has to be inserted into the symbol name
+        Type<out type>
+        Ident<out name1>     (.
+                                        currentScope.Push(new Symbol(name+"."+name1, (int)TastierKind.Struct, (int)type, openScopes.Count-1, currentScope.Count((s => (s.Item2 == (int)TastierKind.Var) || (s.Item2 == (int)TastierKind.Const)))));
                                 .)
-           {',' Ident<out name1>}
-           ';'
-            }
+        {',' Ident<out name1>}
+         ';'
+        }
     '}'';'.
 
 /*------------------------------------------------------------------------*/
